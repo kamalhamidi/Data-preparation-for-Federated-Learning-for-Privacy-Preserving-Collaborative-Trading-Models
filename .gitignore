@@ -1,0 +1,103 @@
+# Data Directories - IGNORE (too large for git)
+Stock market dataset/
+Stock market dataset.zip
+*.csv
+*.zip
+
+# Generated Output Directories
+federated_data/
+output/
+results/
+temp/
+tmp/
+
+# Python Cache & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Directories
+.venv
+.env
+.envrc
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*~
+
+# Pickle files (large models/data)
+*.pkl
+*.pickle
+
+# Parquet files (large data)
+*.parquet
+
+# NumPy arrays
+*.npy
+*.npz
+
+# Large files
+*.tar.gz
+*.tar.bz2
+*.7z
+*.rar
+
+# Project specific
+federated_data/clients/
+federated_data/scalers/
+federated_data/metadata/
+.cache/
+node_modules/
