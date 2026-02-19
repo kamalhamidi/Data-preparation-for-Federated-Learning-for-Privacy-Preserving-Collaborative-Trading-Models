@@ -31,18 +31,8 @@ unzip your-dataset-name.zip -d "./Stock market dataset"
 
 ### Option 2: Direct Download
 [Download from Kaggle](https://www.kaggle.com/)
-
-**Add your direct download link here:**
 ```
-PASTE YOUR DOWNLOAD LINK HERE
-```
-
-### Option 3: Alternative Source
-[Alternative source if available]
-
-**Add alternative link here:**
-```
-PASTE YOUR ALTERNATIVE LINK HERE
+https://www.kaggle.com/datasets/jacksoncrow/stock-market-dataset/data
 ```
 
 ---

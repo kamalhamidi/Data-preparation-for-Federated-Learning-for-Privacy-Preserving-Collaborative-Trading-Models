@@ -105,8 +105,8 @@ class StockDataPipeline:
         metadata = metadata[['Symbol', 'ETF', 'Security Name']].copy()
         
         print(f"✓ Loaded metadata for {len(metadata)} symbols")
-        print(f"  - ETFs: {metadata['ETF'].sum()}")
-        print(f"  - Stocks: {(~metadata['ETF']).sum()}")
+        print(f"  - ETFs: {(metadata['ETF'] == 'Y').sum()}")
+        print(f"  - Stocks: {(metadata['ETF'] != 'Y').sum()}")
         
         return metadata
     
@@ -285,31 +285,61 @@ class StockDataPipeline:
         try:
             df = df.copy()
             
-            # Daily returns (target for regression)
-            df['Returns'] = df['Close'].pct_change() * 100  # percentage returns
+            # Daily returns (target for regression) - with safe division
+            df['Returns'] = df['Close'].pct_change() * 100
+            df['Returns'] = df['Returns'].replace([np.inf, -np.inf], np.nan)
             
             # Moving averages
             df['MA_5'] = df['Close'].rolling(window=5).mean()
             df['MA_20'] = df['Close'].rolling(window=20).mean()
             
-            # Price-to-MA ratios (momentum indicators)
-            df['Price_MA5_Ratio'] = df['Close'] / df['MA_5']
-            df['Price_MA20_Ratio'] = df['Close'] / df['MA_20']
+            # Price-to-MA ratios (momentum indicators) - with safe division
+            df['Price_MA5_Ratio'] = np.where(
+                df['MA_5'] != 0,
+                df['Close'] / df['MA_5'],
+                np.nan
+            )
+            df['Price_MA20_Ratio'] = np.where(
+                df['MA_20'] != 0,
+                df['Close'] / df['MA_20'],
+                np.nan
+            )
+            
+            # Replace inf with NaN
+            df['Price_MA5_Ratio'] = df['Price_MA5_Ratio'].replace([np.inf, -np.inf], np.nan)
+            df['Price_MA20_Ratio'] = df['Price_MA20_Ratio'].replace([np.inf, -np.inf], np.nan)
             
             # Rolling volatility (20-day standard deviation of returns)
             df['Volatility'] = df['Returns'].rolling(window=20).std()
             
-            # Volume change percentage
+            # Volume change percentage - with safe division
             df['Volume_Change'] = df['Volume'].pct_change() * 100
+            df['Volume_Change'] = df['Volume_Change'].replace([np.inf, -np.inf], np.nan)
             
-            # Volume normalized by mean
-            df['Volume_Normalized'] = df['Volume'] / df['Volume'].rolling(window=20).mean()
+            # Volume normalized by mean - with safe division
+            volume_mean = df['Volume'].rolling(window=20).mean()
+            df['Volume_Normalized'] = np.where(
+                volume_mean != 0,
+                df['Volume'] / volume_mean,
+                np.nan
+            )
+            df['Volume_Normalized'] = df['Volume_Normalized'].replace([np.inf, -np.inf], np.nan)
             
-            # Price range (High - Low) / Open
-            df['Price_Range'] = (df['High'] - df['Low']) / df['Open']
+            # Price range (High - Low) / Open - with safe division
+            df['Price_Range'] = np.where(
+                df['Open'] != 0,
+                (df['High'] - df['Low']) / df['Open'],
+                np.nan
+            )
+            df['Price_Range'] = df['Price_Range'].replace([np.inf, -np.inf], np.nan)
             
-            # Close-to-Open ratio
-            df['Close_Open_Ratio'] = df['Close'] / df['Open']
+            # Close-to-Open ratio - with safe division
+            df['Close_Open_Ratio'] = np.where(
+                df['Open'] != 0,
+                df['Close'] / df['Open'],
+                np.nan
+            )
+            df['Close_Open_Ratio'] = df['Close_Open_Ratio'].replace([np.inf, -np.inf], np.nan)
             
             # Next day return (target for prediction) - shift backward
             df['Next_Return'] = df['Returns'].shift(-1)
@@ -318,6 +348,9 @@ class StockDataPipeline:
             # 1: price goes up, 0: stays same/flat, -1: goes down
             df['Direction'] = np.where(df['Next_Return'] > 0.1, 1,
                                       np.where(df['Next_Return'] < -0.1, -1, 0))
+            
+            # Fill NaN values - forward fill then backward fill, then drop remaining
+            df = df.fillna(method='ffill').fillna(method='bfill')
             
             # Drop rows with NaN values introduced by feature engineering
             df = df.dropna().reset_index(drop=True)
@@ -396,10 +429,21 @@ class StockDataPipeline:
                 if feature in df.columns:
                     aggregated_data[feature].extend(df[feature].values)
         
-        # Fit scalers
+        # Fit scalers - Handle inf and NaN values
         for feature, values in aggregated_data.items():
-            if len(values) > 0:
-                scalers[feature].fit(np.array(values).reshape(-1, 1))
+            # Convert to numpy array
+            values_array = np.array(values)
+            
+            # Replace inf with NaN
+            values_array = np.where(np.isinf(values_array), np.nan, values_array)
+            
+            # Remove NaN values for fitting
+            clean_values = values_array[~np.isnan(values_array)]
+            
+            if len(clean_values) > 0:
+                scalers[feature].fit(clean_values.reshape(-1, 1))
+            else:
+                print(f"  ⚠ Warning: Feature '{feature}' has no valid values for scaling")
         
         # Apply scalers to each symbol
         normalized_data = {}
@@ -408,8 +452,21 @@ class StockDataPipeline:
             
             for feature in features_to_normalize:
                 if feature in df_normalized.columns:
+                    values = df_normalized[feature].values.copy()
+                    
+                    # Replace inf with NaN
+                    values = np.where(np.isinf(values), np.nan, values)
+                    
+                    # Replace NaN with feature mean (or 0 if no valid values)
+                    valid_mask = ~np.isnan(values)
+                    if valid_mask.sum() > 0:
+                        values[~valid_mask] = np.nanmean(values)
+                    else:
+                        values[~valid_mask] = 0
+                    
+                    # Apply scaler
                     df_normalized[feature] = scalers[feature].transform(
-                        df_normalized[feature].values.reshape(-1, 1)
+                        values.reshape(-1, 1)
                     ).flatten()
             
             normalized_data[symbol] = df_normalized
